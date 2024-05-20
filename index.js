@@ -9,7 +9,7 @@ env.config()
 
 // Middlewares"
 app.use(morgan("combined"));
-app.use(express.json())
+app.use(express.json()
 app.use(express.urlencoded({ extended: false }));
 
 function  verifyToken(req,res,next){
