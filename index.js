@@ -7,7 +7,10 @@ const { Server } = require("socket.io");
 const { sleep } = require("./utils");
 const roomUsersScore = require("./helper");
 const server = http.createServer(app);
+const dotenv = require("dotenv");
+dotenv.config();
 app.use(cors());
+const PORT = process.env.PORT;
 app.get("/", (req, res) => {
   res.send("Socket server running");
 });
@@ -229,20 +232,39 @@ io.on("connection", (socket) => {
         !isLoopRunning
       ) {
         isLoopRunning = true;
-        // set default answer to notAnswered and default score
-        for (let i = 0; i < sessions[sessionId].users.length; i++) {
+        // Reset the user's score and answer state
+        sessions[sessionId].users = sessions[sessionId].users.map((user) => {
           data_to_send.push(
             roomUsersScore({
-              id: sessions[sessionId].users[i].userId,
-              username: sessions[sessionId].users[i].username,
-              score: sessions[sessionId].users[i].score,
-              // lastQuestionScore: sessions[sessionId].users[i].lastQuestionScore,
-              isOnline: sessions[sessionId].users[i].isOnline,
-              userId: sessions[sessionId].users[i].userId,
+              id: user.userId,
+              username: user.username,
+              score: 0,
+              // lastQuestionScore: user.lastQuestionScore,
+              isOnline: user.isOnline,
+              userId: user.userId,
               answerState: "notAnswered",
             })
           );
-        }
+          user.score = 0;
+          user.answerState = "notAnswered";
+          user.lastQuestionScore = 0;
+          return user;
+        });
+
+        // set default answer to notAnswered and default score
+        // for (let i = 0; i < sessions[sessionId].users.length; i++) {
+        //   data_to_send.push(
+        //     roomUsersScore({
+        //       id: sessions[sessionId].users[i].userId,
+        //       username: sessions[sessionId].users[i].username,
+        //       score: sessions[sessionId].users[i].score,
+        //       // lastQuestionScore: sessions[sessionId].users[i].lastQuestionScore,
+        //       isOnline: sessions[sessionId].users[i].isOnline,
+        //       userId: sessions[sessionId].users[i].userId,
+        //       answerState: "notAnswered",
+        //     })
+        //   );
+        // }
 
         io.to(sessionId).emit("roomUsersScore", data_to_send);
 
@@ -374,39 +396,41 @@ io.on("connection", (socket) => {
     // create a multipler based on the time difference
     // assign the score to the user
     Object.keys(answerOrder[sessionId]).map((userId) => {
-      const user = sessions[sessionId].users.find(
-        (user) => user.userId === userId
-      );
-      if (user) {
-        // const timeDifference =
-        //   answerOrder[sessionId][userId].time - sessions[sessionId].startedTime;
-        // const multiplier = 1 - timeDifference / 15000;
-        // const score = answerOrder[sessionId][userId].answer
-        //   ? 10 * multiplier
-        //   : 0;
-        if (answer) {
-          let score;
-          const timeDifference =
-            answerOrder[sessionId][userId].time -
-            sessions[sessionId].startedTime;
-          //if time difference is less than 3 seconds, assign 10 points
-          if (timeDifference <= 5000) {
-            score = 30;
-          } else if (timeDifference <= 7000) {
-            score = 21;
-          } else if (timeDifference <= 15000) {
-            score = 14;
-          } else if (timeDifference <= 20000) {
-            score = 8;
-          } else {
-            score = 4;
+      if (userId === decodedToken.userId) {
+        const user = sessions[sessionId].users.find(
+          (user) => user.userId === userId
+        );
+        if (user) {
+          // const timeDifference =
+          //   answerOrder[sessionId][userId].time - sessions[sessionId].startedTime;
+          // const multiplier = 1 - timeDifference / 15000;
+          // const score = answerOrder[sessionId][userId].answer
+          //   ? 10 * multiplier
+          //   : 0;
+          if (answer) {
+            let score;
+            const timeDifference =
+              answerOrder[sessionId][userId].time -
+              sessions[sessionId].startedTime;
+            //if time difference is less than 3 seconds, assign 10 points
+            if (timeDifference <= 5000) {
+              score = 30;
+            } else if (timeDifference <= 7000) {
+              score = 21;
+            } else if (timeDifference <= 15000) {
+              score = 14;
+            } else if (timeDifference <= 20000) {
+              score = 8;
+            } else {
+              score = 4;
+            }
+            user.score += score;
+            user.lastQuestionScore = score;
           }
-          user.score += score;
-          user.lastQuestionScore = score;
+          user.answerState = answerOrder[sessionId][userId].answer
+            ? "correctlyAnswered"
+            : "incorrectlyAnswered";
         }
-        user.answerState = answerOrder[sessionId][userId].answer
-          ? "correctlyAnswered"
-          : "incorrectlyAnswered";
       }
     });
     let data_to_send = [];
@@ -571,6 +595,6 @@ io.on("connection", (socket) => {
   });
 });
 
-server.listen(4001, () => {
+server.listen(PORT, () => {
   console.log("App running on port 4001 :)");
 });
