@@ -10,7 +10,7 @@ const server = http.createServer(app);
 const dotenv = require("dotenv");
 dotenv.config();
 app.use(cors());
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 4005;
 app.get("/", (req, res) => {
   res.send("Socket server running");
 });
