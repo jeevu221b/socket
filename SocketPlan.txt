@@ -1,0 +1,54 @@
+# Socket Multiplayer Backend
+
+1. When user creates a party, a session is created in the backend( ‘/createSession’ insert userId of the host). 
+    session will have a unique id: "XYZ123"'
+    
+2. Input -> {userId: 123, sessionId: "XYZ123"} EventName -> roomJoined
+
+3. First inilize the socket connection with the server and then define rooms and sessions array. rooms = [], sessions= []
+    rooms = [{room: "xyz", isActive: true}]
+
+/// id, name, value 
+sessions = [{ room: sessionId, users: [{"id":123, "score":0, lastRoundScore:0, "isConnected":true, isHost: false}], id, name, value }]
+
+userAnswer = [{room: sessionId, question:[{index: 0:users: [{id: 123, answer: "answeredCorrectly"}, {id: 124, answer: "answeredWrong"}]}]}, {index: 1:users: [{id: 123, answer: "answeredCorrectly"}, {id: 124, answer: "answeredWrong"}]}]
+
+Listen the roomJoined event check if the room with the given sessionId doesn't exist in the rooms array - 
+    then create a new room -> rooms = ["XYWBE"] sessions= []
+    add the user to the sessions array as 
+    sessions = [{ room: sessionId, users: [{"id":123, "score":0, lastRoundScore:0, "isConnected":true, isHost: false,}], currentLevel: 5, isPlaying: false, round: 1}],
+ 
+else find the room :
+    if user already exists: update the user object in array => {"isConnected":true, socketId: socketId}
+    if user doesn't exist: push tge user to udsr bj4ct => {"id":123, socketId: socketId, "score":0, lastRoundScore:0, "isConnected":true, isHost: false}
+    sessions = [{ room: sessionId, users: [{"id":123, socketId: socketId, "score":0, lastRoundScore:0, "isConnected":true, isHost: false}] }]
+
+4. Broadcast to everyone about the new user who joined the room
+
+5. on gameStarted(room) event started the game i.e start the timer for the round.
+
+6. on questionAnswered(userId, room, answer) update the user's score if the answer is correct and also broadcast to
+everyone that particular user has answered the question
+
+## Also include the level and subcategory in the joinGame event
+## Broadcast the level and subcategory to all the users in the room when the host updates the level and subcategory
+
+9. Disconnect Event
+-> For the given socketId, find the user in the sessions array and update the isConnected to false
+
+struct Players: Codable, Identifiable {
+    let id: String
+    let username: String
+    let score: Int
+    let isOnline: Bool
+    let userId: String
+    let answerState: AnswerState
+}
+
+enum AnswerState: String, Codable {
+    case correctlyAnswered = "correctlyAnswered"
+    case incorrectlyAnswered = "incorrectlyAnswered"
+    case notAnswered = "notAnswered"
+}
+
+const session = {room1:{user:[], }}

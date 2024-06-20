@@ -17,8 +17,8 @@ router.get("/login", (req, res) => {
     if (!username || !password) {
       throw new Error("Invalid input :(");
     }
-    const user = JSON.parse(fs.readFileSync("userdata.json", "utf8"))
-    ;
+
+    JSON.parse(fs.readFileSync("userdata.json", "utf8"));
     if (userData.username == username && userData.password == password) {
       console.log("User succesfully logged in ;)");
       const token = jwt.sign(userData, process.env.SECRET_KEY, {
@@ -27,7 +27,7 @@ router.get("/login", (req, res) => {
       res.json({ token });
     }
   } catch (error) {
-    console.log("ERROR");
+    console.log("ERROR", error);
   }
 });
 
