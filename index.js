@@ -147,6 +147,9 @@ io.on("connection", (socket) => {
           (user, index, arr) => {
             if (index > 0 && user.score < arr[index - 1].score) {
               rank = index + 1;
+            } else if (index > 0 && user.score === arr[index - 1].score) {
+              user.rank = arr[index - 1].rank;
+              return user;
             }
             user.rank = rank;
             return user;
