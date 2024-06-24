@@ -525,7 +525,7 @@ io.on("connection", (socket) => {
             }
             io.to(sessionId).emit("roomUsers", sessions[sessionId]?.users);
           }
-        }, 90000);
+        }, 40000);
 
         // if (sessions[sessionId].isGameRunning) {
         //   sessions[sessionId].users = sessions[sessionId]?.users.filter(
