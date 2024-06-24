@@ -15,6 +15,8 @@ app.get("/", (req, res) => {
   res.send("Socket server running");
 });
 const io = new Server(server, {
+  pingInterval: 10000, // default: 25000
+  pingTimeout: 5000,
   cors: {
     origin: "*",
     methods: ["GET", "POST"],
@@ -41,96 +43,31 @@ io.on("connection", (socket) => {
   }
   console.log("Decoded token:", decodedToken);
 
-  // Check if the user is present in the sessions object
-  let user = {};
-  for (const sessionId in sessions) {
-    user = sessions[sessionId]?.users.find(
-      (user) => user.userId === decodedToken?.userId
-    );
-  }
-  if (!user) {
-    console.log("Before emitting userNotInSession");
-    socket.emit("userNotInSession", {
-      message: "User not present in any session",
+  //find session where this users exists
+  const sessionId = Object.keys(sessions).find((_id) =>
+    sessions[_id]?.users.find((user) => user.userId === decodedToken?.userId)
+  );
+
+  console.log("Sessions", JSON.stringify(sessions));
+  if (sessionId) {
+    sessions[sessionId].users = sessions[sessionId]?.users.map((user) => {
+      if (user.userId === decodedToken.userId) {
+        //user joins the socket room
+        socket.join(sessionId);
+        user.socketId = socket.id;
+        user.isOnline = true;
+      }
+      return user;
     });
-  }
-
-  socket.on("joinRoom", async ({ username, sessionId, photoURL }) => {
+    //Send the session info to the reconnected user
     console.log(
-      `************EVENT RECEIVED: joinRoom for session ${sessionId} **************** /n/n/n`
+      "Before emmiting reconnectUserr:::::::",
+      sessions[sessionId].users
     );
-    console.log(`************ Username : ${username} **************** /n/n/n`);
-    if (!sessionId) {
-      throw Error("Session ID is required");
-    }
-    socket.join(sessionId);
-    // if (!rooms[sessionId]) {
-    //   rooms[sessionId] = [];
-    // }
+    // socket.emit("reconnectUser", sessions[idOfSession]);
+    io.to(sessionId).emit("roomUsers", sessions[sessionId].users);
 
-    if (!sessions[sessionId]) {
-      sessions[sessionId] = { users: [], round: 0, isGameRunning: false };
-    }
-
-    const isHost = sessions[sessionId]?.users?.length === 0 ? true : false;
-    const user = {
-      socketId: socket.id,
-      userId: decodedToken?.userId || "",
-      username: `@${username}`,
-      isOnline: true,
-      score: 0,
-      lastRound: 0,
-      imageName: photoURL,
-      rank: 0,
-      answerState: "notAnswered",
-      lastQuestionScore: 0,
-      isHost: isHost, // Set isHost flag accordingly
-    };
-
-    // const existingUserIndex = rooms[sessionId].findIndex(
-    //   (data) => data.username == user.username
-    // );
-
-    const existingUserIndex1 = sessions[sessionId]?.users?.findIndex(
-      (data) => data.username == user.username
-    );
-
-    // if (existingUserIndex < 0) {
-    //   rooms[sessionId].push(user);
-    // } else {
-    //   rooms[sessionId] = rooms[sessionId].map((user, index) => {
-    //
-    //     return user;
-    //   });
-    // }
-
-    // Restructure the sessions object
-    if (existingUserIndex1 < 0) {
-      sessions[sessionId].users.push(user);
-    } else {
-      sessions[sessionId].users = sessions[sessionId]?.users?.map(
-        (user, index) => {
-          if (index === existingUserIndex1) {
-            user.isOnline = true;
-            user.socketId = socket.id;
-          }
-          return user;
-        }
-      );
-    }
-    if (sessions[sessionId].hasPlayed) {
-      sessions[sessionId].users = sessions[sessionId].users.sort(
-        (a, b) => b.score - a.score
-      );
-      sessions[sessionId].users = sessions[sessionId].users.map(
-        (user, index) => {
-          user.rank = index + 1;
-          return user;
-        }
-      );
-      sessions[sessionId].hasPlayed = false;
-    }
-
+    //@TO_DO: move it to the function
     if (sessions[sessionId].category) {
       socket.emit("partyData", {
         id: "category",
@@ -152,32 +89,98 @@ io.on("connection", (socket) => {
         value: sessions[sessionId].level.value,
       });
     }
-    console.log("Sessions: ", sessions[sessionId]);
-    // io.to(sessionId).emit("roomUsers", rooms[sessionId]);
-    io.to(sessionId).emit("roomUsers", sessions[sessionId].users);
+  } else {
+    io.to(socket.id).emit("socketConnected");
+  }
+
+  socket.on("joinRoom", async ({ username, sessionId, photoURL }) => {
+    console.log(
+      `************EVENT RECEIVED: joinRoom for session ${sessionId} **************** /n/n/n`
+    );
+    console.log(`************ Username : ${username} **************** /n/n/n`);
+    if (!sessionId) {
+      throw Error("Session ID is required");
+    }
+    socket.join(sessionId);
+    if (decodedToken) {
+      if (!sessions[sessionId]) {
+        sessions[sessionId] = { users: [], round: 0, isGameRunning: false };
+      }
+
+      const isHost = sessions[sessionId]?.users?.length === 0 ? true : false;
+      const user = {
+        socketId: socket.id,
+        userId: decodedToken?.userId,
+        username: `${username}`,
+        isOnline: true,
+        score: 0,
+        lastRound: 0,
+        imageName: photoURL,
+        rank: 0,
+        answerState: "notAnswered",
+        lastQuestionScore: 0,
+        isHost: isHost, // Set isHost flag accordingly
+      };
+      const existingUserIndex1 = sessions[sessionId]?.users?.findIndex(
+        (data) => data.username == user.username
+      );
+      if (existingUserIndex1 < 0) {
+        sessions[sessionId].users.push(user);
+      } else {
+        sessions[sessionId].users = sessions[sessionId]?.users?.map(
+          (user, index) => {
+            if (index === existingUserIndex1) {
+              user.isOnline = true;
+              user.socketId = socket.id;
+            }
+            return user;
+          }
+        );
+      }
+      if (sessions[sessionId].hasPlayed) {
+        sessions[sessionId].users = sessions[sessionId].users.sort(
+          (a, b) => b.score - a.score
+        );
+        sessions[sessionId].users = sessions[sessionId].users.map(
+          (user, index) => {
+            user.rank = index + 1;
+            return user;
+          }
+        );
+        sessions[sessionId].hasPlayed = false;
+      }
+
+      if (sessions[sessionId].category) {
+        socket.emit("partyData", {
+          id: "category",
+          name: sessions[sessionId].category.name,
+          value: sessions[sessionId].category.value,
+        });
+      }
+      if (sessions[sessionId].subcategory) {
+        socket.emit("partyData", {
+          id: "subcategory",
+          name: sessions[sessionId].subcategory.name,
+          value: sessions[sessionId].subcategory.value,
+        });
+      }
+      if (sessions[sessionId].level) {
+        socket.emit("partyData", {
+          id: "level",
+          name: sessions[sessionId].level.name,
+          value: sessions[sessionId].level.value,
+        });
+      }
+      console.log("Sessions: ", sessions[sessionId].users);
+      // io.to(sessionId).emit("roomUsers", rooms[sessionId]);
+      io.to(sessionId).emit("roomUsers", sessions[sessionId].users);
+    }
   });
 
   socket.on("leaveRoom", ({ sessionId }) => {
     console.log(
       `************EVENT RECEIVED: leaveRoom for session ${sessionId} **************** /n/n/n`
     );
-    // if (rooms[sessionId]) {
-    //   const user = rooms[sessionId].find((user) => user.socketId == socket.id);
-    //   if (user?.isHost && rooms[sessionId].length > 1) {
-    //     const nextUser = rooms[sessionId].find(
-    //       (user) => user.socketId !== socket.id
-    //     );
-    //     rooms[sessionId] = rooms[sessionId]?.map((user) =>
-    //       user.id === nextUser.id ? { ...user, isHost: true } : user
-    //     );
-    //   }
-    //   rooms[sessionId] = rooms[sessionId]?.filter(
-    //     (user) => user.socketId !== socket.id
-    //   );
-    // }
-    // console.log("At leave room: ", rooms[sessionId]);
-    // io.to(sessionId).emit("roomUsers", rooms[sessionId]);
-
     if (sessions[sessionId]) {
       const user = sessions[sessionId]?.users.find(
         (user) => user.userId == decodedToken.userId
@@ -245,6 +248,7 @@ io.on("connection", (socket) => {
               answerState: "notAnswered",
             })
           );
+
           user.score = 0;
           user.answerState = "notAnswered";
           user.lastQuestionScore = 0;
@@ -469,22 +473,6 @@ io.on("connection", (socket) => {
     console.log(
       `************EVENT RECEIVED: getRoomUsersScore for session ${sessionId} **************** /n/n/n`
     );
-    // console.log("getRoomUsersScore", sessionId);
-    // const data_to_send = [];
-    // for (let i = 0; i < rooms[sessionId].length; i++) {
-    //   data_to_send.push({
-    //     id: rooms[sessionId][i].userId,
-    //     username: rooms[sessionId][i].username,
-    //     score: rooms[sessionId][i].score,
-    //     isOnline: rooms[sessionId][i].isOnline,
-    //     userId: rooms[sessionId][i].userId,
-    //     answerState: "notAnswered",
-    //   });
-    // }
-
-    // console.log("Before emtting roomUsersScore", data_to_send);
-    // io.to(sessionId).emit("roomUsersScore", data_to_send);
-
     console.log("getRoomUsersScore", sessionId);
     const data_to_send = [];
     if (sessions[sessionId] && sessions[sessionId].users) {
@@ -511,51 +499,12 @@ io.on("connection", (socket) => {
     console.log(
       `************EVENT RECEIVED: disconnect **************** /n/n/n`
     );
-    // for (const room in rooms) {
-    //   rooms[room] = rooms[room].map((user) => {
-    //     if (user.socketId === socket.id) {
-    //       user.isOnline = false;
-    //       user.disconnectedAt = new Date().getTime();
-    //     }
-
-    //     //Restructure the sessions object
-
-    //     console.log("Room to disconnect", room);
-    //     io.to(room).emit("roomUsers", rooms[room]);
-
-    //     setTimeout(() => {
-    //       // check if user is back online
-    //       if (!user.isOnline) {
-    //         //remove user from room
-    //         rooms[room] = rooms[room]?.filter(
-    //           (user) => user.socketId !== socket.id
-    //         );
-
-    //         // if rooms is empty, delete the room
-    //         if (rooms[room]?.length === 0) {
-    //           delete rooms[room];
-    //         }
-
-    //         io.to(room).emit("roomUsers", rooms[room]);
-    //       }
-    //     }, 10000);
-
-    //     return user;
-    //   });
-    //   console.log("At disconnect", rooms[room]);
-    //   // io.to(room).emit("roomUsers", rooms[room]);
-    // }
-    // console.log("Client disconnected");
-
     for (const sessionId in sessions) {
       sessions[sessionId].users = sessions[sessionId].users.map((user) => {
         if (user.socketId === socket.id) {
           user.isOnline = false;
           user.disconnectedAt = new Date().getTime();
         }
-
-        // Restructure the sessions object
-
         console.log("Session to disconnect", sessionId);
         io.to(sessionId).emit("roomUsers", sessions[sessionId].users);
 
@@ -570,15 +519,13 @@ io.on("connection", (socket) => {
             sessions[sessionId].users = sessions[sessionId]?.users.filter(
               (user) => user.socketId !== socket.id
             );
-
             // if session is empty, delete the session
             if (sessions[sessionId].users.length === 0) {
               delete sessions[sessionId];
             }
-
             io.to(sessionId).emit("roomUsers", sessions[sessionId]?.users);
           }
-        }, 10000);
+        }, 90000);
 
         // if (sessions[sessionId].isGameRunning) {
         //   sessions[sessionId].users = sessions[sessionId]?.users.filter(
@@ -595,6 +542,6 @@ io.on("connection", (socket) => {
   });
 });
 
-server.listen(PORT, () => {
+server.listen(PORT, "0.0.0.0", () => {
   console.log("App running on port 4001 :)");
 });
