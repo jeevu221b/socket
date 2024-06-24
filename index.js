@@ -141,12 +141,18 @@ io.on("connection", (socket) => {
         sessions[sessionId].users = sessions[sessionId].users.sort(
           (a, b) => b.score - a.score
         );
+
+        let rank = 1;
         sessions[sessionId].users = sessions[sessionId].users.map(
-          (user, index) => {
-            user.rank = index + 1;
+          (user, index, arr) => {
+            if (index > 0 && user.score < arr[index - 1].score) {
+              rank = index + 1;
+            }
+            user.rank = rank;
             return user;
           }
         );
+
         sessions[sessionId].hasPlayed = false;
       }
 
