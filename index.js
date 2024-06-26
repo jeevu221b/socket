@@ -511,7 +511,7 @@ io.on("connection", (socket) => {
       `************EVENT RECEIVED: disconnect **************** \n\n\n`
     );
 
-    const handleUserDisconnect = (sessionId, userSocketId) => {
+    const handleUserDisconnect = (sessionId, userSocketId, _reassignHost) => {
       const session = sessions[sessionId];
       const userIndex = session.users.findIndex(
         (u) => u.socketId === userSocketId
@@ -530,7 +530,7 @@ io.on("connection", (socket) => {
           );
 
           // Call the ressignHost function
-          sessions[sessionId] = reassignHost({
+          sessions[sessionId] = _reassignHost({
             sessionId,
             sessions,
             userId: user.userId,
@@ -549,7 +549,10 @@ io.on("connection", (socket) => {
           user.disconnectedAt = new Date().getTime();
 
           // Wait for 30 seconds before checking if the user is still offline
-          setTimeout(() => handleUserDisconnect(sessionId, socket.id), 30000);
+          setTimeout(
+            () => handleUserDisconnect(sessionId, socket.id, reassignHost),
+            30000
+          );
         }
         console.log("Session to disconnect", sessionId);
         io.to(sessionId).emit("roomUsers", sessions[sessionId].users);
