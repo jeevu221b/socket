@@ -99,7 +99,8 @@ io.on("connection", (socket) => {
     );
     console.log(`************ Username : ${username} **************** /n/n/n`);
     if (!sessionId) {
-      throw Error("Session ID is required");
+      console.log("Session ID is required");
+      return;
     }
     socket.join(sessionId);
     if (decodedToken) {
