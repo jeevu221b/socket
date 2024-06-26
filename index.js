@@ -90,6 +90,7 @@ io.on("connection", (socket) => {
       });
     }
   } else {
+    console.log("Before emittting socketConnected:::::::", socket.id);
     io.to(socket.id).emit("socketConnected");
   }
 
@@ -507,53 +508,54 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", () => {
     console.log(
-      `************EVENT RECEIVED: disconnect **************** /n/n/n`
+      `************EVENT RECEIVED: disconnect **************** \n\n\n`
     );
+
+    const handleUserDisconnect = (sessionId, userSocketId) => {
+      const session = sessions[sessionId];
+      const userIndex = session.users.findIndex(
+        (u) => u.socketId === userSocketId
+      );
+
+      if (userIndex !== -1) {
+        const user = session.users[userIndex];
+        const currentTime = new Date().getTime();
+
+        // Check if the user has been offline for at least 30 seconds
+        if (currentTime - user.disconnectedAt >= 30000) {
+          // Remove the user from the session
+          session.users.splice(userIndex, 1);
+          console.log(
+            `Removing user ${userSocketId} from session ${sessionId}`
+          );
+
+          // Call the ressignHost function
+          sessions[sessionId] = reassignHost({
+            sessionId,
+            sessions,
+            userId: user.userId,
+          });
+
+          // Emit the updated user list
+          io.to(sessionId).emit("roomUsers", session.users);
+        }
+      }
+    };
+
     for (const sessionId in sessions) {
       sessions[sessionId].users = sessions[sessionId].users.map((user) => {
         if (user.socketId === socket.id) {
           user.isOnline = false;
           user.disconnectedAt = new Date().getTime();
+
+          // Wait for 30 seconds before checking if the user is still offline
+          setTimeout(() => handleUserDisconnect(sessionId, socket.id), 30000);
         }
         console.log("Session to disconnect", sessionId);
         io.to(sessionId).emit("roomUsers", sessions[sessionId].users);
-
-        setTimeout(() => {
-          // check if user is back online
-          if (
-            !user.isOnline &&
-            sessions[sessionId] &&
-            sessions[sessionId].users
-          ) {
-            // remove user from session
-
-            sessions[sessionId] = reassignHost({
-              sessions,
-              userId: decodedToken.userId,
-              sessionId,
-            });
-
-            sessions[sessionId].users = sessions[sessionId]?.users.filter(
-              (user) => user.socketId !== socket.id
-            );
-            // if session is empty, delete the session
-            if (sessions[sessionId].users.length === 0) {
-              delete sessions[sessionId];
-            }
-            io.to(sessionId).emit("roomUsers", sessions[sessionId]?.users);
-          }
-        }, 30000);
-
-        // if (sessions[sessionId].isGameRunning) {
-        //   sessions[sessionId].users = sessions[sessionId]?.users.filter(
-        //     (user) => user.socketId !== socket.id
-        //   );
-        // }
-
         return user;
       });
       console.log("At disconnect", sessions[sessionId].users);
-      // io.to(sessionId).emit("roomUsers", sessions[sessionId].user);
     }
     console.log("Client disconnected");
   });
