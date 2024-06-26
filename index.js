@@ -4,7 +4,7 @@ const app = express();
 const cors = require("cors");
 const http = require("http");
 const { Server } = require("socket.io");
-const { sleep } = require("./utils");
+const { sleep, reassignHost } = require("./utils");
 const roomUsersScore = require("./helper");
 const server = http.createServer(app);
 const dotenv = require("dotenv");
@@ -15,8 +15,8 @@ app.get("/", (req, res) => {
   res.send("Socket server running");
 });
 const io = new Server(server, {
-  pingInterval: 10000, // default: 25000
-  pingTimeout: 5000,
+  pingInterval: 8000, // default: 25000
+  pingTimeout: 7000,
   cors: {
     origin: "*",
     methods: ["GET", "POST"],
@@ -315,7 +315,7 @@ io.on("connection", (socket) => {
           sessions[sessionId].startedTime = new Date().getTime();
           console.log("Emitting nextQuestion", index);
           io.to(sessionId).emit("nextQuestion", { index });
-          const waitTime = 25000;
+          const waitTime = 30000;
           const startTime = new Date().getTime();
 
           console.log(
@@ -337,7 +337,7 @@ io.on("connection", (socket) => {
             );
             if (allAnswered) {
               console.log(`All users have answered${new Date().getTime()}`);
-              await sleep(2000);
+              await sleep(1400);
               break;
             }
             await sleep(1000);
@@ -525,6 +525,13 @@ io.on("connection", (socket) => {
             sessions[sessionId].users
           ) {
             // remove user from session
+
+            sessions[sessionId] = reassignHost({
+              sessions,
+              userId: decodedToken.userId,
+              sessionId,
+            });
+
             sessions[sessionId].users = sessions[sessionId]?.users.filter(
               (user) => user.socketId !== socket.id
             );
@@ -534,7 +541,7 @@ io.on("connection", (socket) => {
             }
             io.to(sessionId).emit("roomUsers", sessions[sessionId]?.users);
           }
-        }, 40000);
+        }, 30000);
 
         // if (sessions[sessionId].isGameRunning) {
         //   sessions[sessionId].users = sessions[sessionId]?.users.filter(
