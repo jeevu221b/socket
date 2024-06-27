@@ -4,7 +4,7 @@ const app = express();
 const cors = require("cors");
 const http = require("http");
 const { Server } = require("socket.io");
-const { sleep, reassignHost } = require("./utils");
+const { sleep } = require("./utils");
 const roomUsersScore = require("./helper");
 const server = http.createServer(app);
 const dotenv = require("dotenv");
@@ -375,24 +375,6 @@ io.on("connection", (socket) => {
     sessions[sessionId].hasPlayed = false;
   });
 
-  // socket.on("timeExpired", ({ username, room }) => {
-  //   io.to("1").emit("timeExpiredUser", username);
-  // });
-  // const answerOrder = {
-  //   sessionId: {
-  //     userId: {
-  //       answer: true,
-  //       time: 1234567890,
-  //       score: 10,
-  //     },
-  //     userId2: {
-  //       answer: false,
-  //       time: 1234567890,
-  //       score: 0,
-  //     },
-  //   },
-  // };
-  // let answerOrder = {};
   socket.on("onAnswer", ({ sessionId, answer }) => {
     console.log(
       `************EVENT RECEIVED: onAnswer for session ${sessionId} **************** /n/n/n`
@@ -416,12 +398,6 @@ io.on("connection", (socket) => {
           (user) => user.userId === userId
         );
         if (user) {
-          // const timeDifference =
-          //   answerOrder[sessionId][userId].time - sessions[sessionId].startedTime;
-          // const multiplier = 1 - timeDifference / 15000;
-          // const score = answerOrder[sessionId][userId].answer
-          //   ? 10 * multiplier
-          //   : 0;
           if (answer) {
             let score;
             const timeDifference =
@@ -511,7 +487,7 @@ io.on("connection", (socket) => {
       `************EVENT RECEIVED: disconnect **************** \n\n\n`
     );
 
-    const handleUserDisconnect = (sessionId, userSocketId, _reassignHost) => {
+    const handleUserDisconnect = (sessionId, userSocketId) => {
       const session = sessions[sessionId];
       const userIndex = session.users.findIndex(
         (u) => u.socketId === userSocketId
@@ -523,20 +499,29 @@ io.on("connection", (socket) => {
 
         // Check if the user has been offline for at least 30 seconds
         if (currentTime - user.disconnectedAt >= 30000) {
-          // Remove the user from the session
+          // Call the ressignHost function
+          const userId = user.userId;
+          if (user.isHost && sessions[sessionId]?.users.length > 1) {
+            const nextUser = sessions[sessionId]?.users.find(
+              (user) => user.userId !== userId
+            );
+            sessions[sessionId].users = sessions[sessionId]?.users.map((user) =>
+              user.userId === nextUser.userId ? { ...user, isHost: true } : user
+            );
+          }
+
           session.users.splice(userIndex, 1);
           console.log(
             `Removing user ${userSocketId} from session ${sessionId}`
           );
 
-          // Call the ressignHost function
-          sessions[sessionId] = _reassignHost({
-            sessionId,
-            sessions,
-            userId: user.userId,
-          });
-
           // Emit the updated user list
+          console.log(
+            "Before Emitting roomUsers ::::::",
+            session.users,
+            " /n user:",
+            user
+          );
           io.to(sessionId).emit("roomUsers", session.users);
         }
       }
@@ -549,10 +534,7 @@ io.on("connection", (socket) => {
           user.disconnectedAt = new Date().getTime();
 
           // Wait for 30 seconds before checking if the user is still offline
-          setTimeout(
-            () => handleUserDisconnect(sessionId, socket.id, reassignHost),
-            30000
-          );
+          setTimeout(() => handleUserDisconnect(sessionId, socket.id), 30000);
         }
         console.log("Session to disconnect", sessionId);
         io.to(sessionId).emit("roomUsers", sessions[sessionId].users);
