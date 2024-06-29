@@ -5,7 +5,7 @@ const cors = require("cors");
 const http = require("http");
 const { Server } = require("socket.io");
 const { sleep } = require("./utils");
-const roomUsersScore = require("./helper");
+const { getStreakMessage, roomUsersScore } = require("./helper");
 const server = http.createServer(app);
 const dotenv = require("dotenv");
 dotenv.config();
@@ -121,6 +121,7 @@ io.on("connection", (socket) => {
         rank: 0,
         answerState: "notAnswered",
         lastQuestionScore: 0,
+        streak: { score: 0, index: 0 },
         isHost: isHost, // Set isHost flag accordingly
       };
       const existingUserIndex1 = sessions[sessionId]?.users?.findIndex(
@@ -236,7 +237,6 @@ io.on("connection", (socket) => {
       let data_to_send = [];
       let second_data_to_send = [];
 
-      console.log("All Ready users", readyUsers[sessionId]);
       console.log(
         `All users in the room ${sessions[sessionId]?.users.length} and readyUsers ${readyUsers[sessionId].length}`
       );
@@ -265,22 +265,6 @@ io.on("connection", (socket) => {
           user.lastQuestionScore = 0;
           return user;
         });
-
-        // set default answer to notAnswered and default score
-        // for (let i = 0; i < sessions[sessionId].users.length; i++) {
-        //   data_to_send.push(
-        //     roomUsersScore({
-        //       id: sessions[sessionId].users[i].userId,
-        //       username: sessions[sessionId].users[i].username,
-        //       score: sessions[sessionId].users[i].score,
-        //       // lastQuestionScore: sessions[sessionId].users[i].lastQuestionScore,
-        //       isOnline: sessions[sessionId].users[i].isOnline,
-        //       userId: sessions[sessionId].users[i].userId,
-        //       answerState: "notAnswered",
-        //     })
-        //   );
-        // }
-
         io.to(sessionId).emit("roomUsersScore", data_to_send);
 
         for (let index = 0; index < 10; index++) {
@@ -392,6 +376,9 @@ io.on("connection", (socket) => {
     //compare  sessions[sessionId].currentQuestion.startedAt with the time of the answer
     // create a multipler based on the time difference
     // assign the score to the user
+    let streakIndex = -1;
+    let streakData;
+
     Object.keys(answerOrder[sessionId]).map((userId) => {
       if (userId === decodedToken.userId) {
         const user = sessions[sessionId].users.find(
@@ -416,7 +403,32 @@ io.on("connection", (socket) => {
               score = 4;
             }
             user.score += score;
+            user.streak.score += score;
+            user.streak.index += 1;
             user.lastQuestionScore = score;
+            if (user.streak.index >= 3) {
+              if (score == 30) {
+                if (user.streak.score >= 90) {
+                  streakIndex += 1;
+                  streakData = getStreakMessage(
+                    user.streak.index,
+                    user.username
+                  );
+                  streakData.userId = user.userId;
+                  //Emit the streak message
+                  console.log(
+                    "-------------Emitting streak----------------",
+                    streakData,
+                    user
+                  );
+                  io.to(sessionId).emit("streak", streakData);
+                }
+              } else {
+                streakIndex = -1;
+                user.streak.score = 0;
+                user.streak.index = 0;
+              }
+            }
           }
           user.answerState = answerOrder[sessionId][userId].answer
             ? "correctlyAnswered"
