@@ -121,7 +121,7 @@ io.on("connection", (socket) => {
         rank: 0,
         answerState: "notAnswered",
         lastQuestionScore: 0,
-        streak: { score: 0, index: 0 },
+        streak: { score: 0, index: 0, streakIndex: -1 },
         isHost: isHost, // Set isHost flag accordingly
       };
       const existingUserIndex1 = sessions[sessionId]?.users?.findIndex(
@@ -261,6 +261,10 @@ io.on("connection", (socket) => {
           );
 
           user.score = 0;
+          user.streak.score = 0;
+          user.streak.index = 0;
+          user.streak.streakIndex = -1;
+
           user.answerState = "notAnswered";
           user.lastQuestionScore = 0;
           return user;
@@ -376,7 +380,7 @@ io.on("connection", (socket) => {
     //compare  sessions[sessionId].currentQuestion.startedAt with the time of the answer
     // create a multipler based on the time difference
     // assign the score to the user
-    let streakIndex = -1;
+    // let streakIndex = -1;
     let streakData;
 
     Object.keys(answerOrder[sessionId]).map((userId) => {
@@ -391,43 +395,37 @@ io.on("connection", (socket) => {
               answerOrder[sessionId][userId].time -
               sessions[sessionId].startedTime;
             //if time difference is less than 3 seconds, assign 10 points
-            if (timeDifference <= 5000) {
+            if (timeDifference <= 8500) {
               score = 30;
-            } else if (timeDifference <= 7000) {
-              score = 21;
-            } else if (timeDifference <= 15000) {
-              score = 14;
+            } else if (timeDifference <= 11000) {
+              score = 23;
+            } else if (timeDifference <= 14000) {
+              score = 19;
             } else if (timeDifference <= 20000) {
+              score = 15;
+            } else if (timeDifference <= 24000) {
+              score = 11;
+            } else if (timeDifference <= 27000) {
               score = 8;
             } else {
               score = 4;
             }
             user.score += score;
-            user.streak.score += score;
-            user.streak.index += 1;
             user.lastQuestionScore = score;
+            if (score == 30) {
+              user.streak.index += 1;
+            } else {
+              user.streak.index = 0;
+              user.sreak.streakIndex = -1;
+            }
             if (user.streak.index >= 3) {
-              if (score == 30) {
-                if (user.streak.score >= 90) {
-                  streakIndex += 1;
-                  streakData = getStreakMessage(
-                    user.streak.index,
-                    user.username
-                  );
-                  streakData.userId = user.userId;
-                  //Emit the streak message
-                  console.log(
-                    "-------------Emitting streak----------------",
-                    streakData,
-                    user
-                  );
-                  io.to(sessionId).emit("streak", streakData);
-                }
-              } else {
-                streakIndex = -1;
-                user.streak.score = 0;
-                user.streak.index = 0;
-              }
+              user.streak.streakIndex += 1;
+              streakData = getStreakMessage(
+                user.streak.streakIndex,
+                user.username
+              );
+              streakData.userId = user.userId;
+              io.to(sessionId).emit("streak", streakData);
             }
           }
           user.answerState = answerOrder[sessionId][userId].answer
