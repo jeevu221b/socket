@@ -416,7 +416,7 @@ io.on("connection", (socket) => {
               user.streak.index += 1;
             } else {
               user.streak.index = 0;
-              user.sreak.streakIndex = -1;
+              user.streak.streakIndex = -1;
             }
             if (user.streak.index >= 3) {
               user.streak.streakIndex += 1;
