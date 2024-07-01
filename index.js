@@ -431,15 +431,15 @@ io.on("connection", (socket) => {
               );
               io.to(sessionId).emit("streak", streakData);
             }
+            // Reset the streak if user answers incorrectly
+            if (!answerOrder[sessionId][userId].answer) {
+              user.streak.index = 0;
+              user.streak.streakIndex = -1;
+            }
+            user.answerState = answerOrder[sessionId][userId].answer
+              ? "correctlyAnswered"
+              : "incorrectlyAnswered";
           }
-          // Reset the streak if user answers incorrectly
-          if (!answerOrder[sessionId][userId].answer) {
-            user.streak.index = 0;
-            user.streak.streakIndex = -1;
-          }
-          user.answerState = answerOrder[sessionId][userId].answer
-            ? "correctlyAnswered"
-            : "incorrectlyAnswered";
         }
       }
     });

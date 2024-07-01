@@ -79,15 +79,15 @@ function roomUsersScore(args) {
 }
 const streakMessages = [
   `{name} is on fire!`,
-  `{name} is unstoppable!`,
   `{name} is on an incredible streak!`,
+  // `{name} is unstoppable!`,
   // `{name} is dominating!`,
   // `{name} can't be stopped!`,
 ];
 const userStreakMessages = [
   `You are on fire!`,
-  `You are unstoppable!`,
   `You are on an incredible streak!`,
+  // `You are unstoppable!`,
   // `You are dominating!`,
   // `You can't be stopped!`,
 ];
