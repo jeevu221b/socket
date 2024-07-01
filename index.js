@@ -382,7 +382,6 @@ io.on("connection", (socket) => {
     // assign the score to the user
     // let streakIndex = -1;
     let streakData;
-
     Object.keys(answerOrder[sessionId]).map((userId) => {
       if (userId === decodedToken.userId) {
         const user = sessions[sessionId].users.find(
@@ -425,8 +424,18 @@ io.on("connection", (socket) => {
                 user.username
               );
               streakData.userId = user.userId;
+              console.log(
+                "<<<<<-------------STREAK DATA------------->>>>>",
+                user.username,
+                streakData
+              );
               io.to(sessionId).emit("streak", streakData);
             }
+          }
+          // Reset the streak if user answers incorrectly
+          if (!answerOrder[sessionId][userId].answer) {
+            user.streak.index = 0;
+            user.streak.streakIndex = -1;
           }
           user.answerState = answerOrder[sessionId][userId].answer
             ? "correctlyAnswered"
