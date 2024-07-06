@@ -64,8 +64,6 @@ function roomUsersScore(args) {
   if (typeof id !== "string") {
     throw new Error("The argument 'id' must be a string.");
   }
-  console.log("lastQuestionScore", lastQuestionScore);
-
   return {
     username,
     score,
@@ -103,4 +101,30 @@ function getStreakMessage(index, name) {
   }
 }
 
-module.exports = { roomUsersScore, getStreakMessage };
+const removeUserFromSession = (sessions, sessionId, userId) => {
+  if (sessions[sessionId]) {
+    const user = sessions[sessionId]?.users.find(
+      (user) => user.userId == userId
+    );
+
+    if (user?.isHost && sessions[sessionId]?.users.length > 1) {
+      const nextUser = sessions[sessionId]?.users.find(
+        (user) => user.userId !== userId
+      );
+      sessions[sessionId].users = sessions[sessionId]?.users.map((user) =>
+        user.id === nextUser.id ? { ...user, isHost: true } : user
+      );
+    }
+
+    sessions[sessionId].users = sessions[sessionId]?.users.filter(
+      (user) => user.userId !== userId
+    );
+
+    // If user is the last user in the room, delete the room
+    if (sessions[sessionId]?.users.length === 0) {
+      delete sessions[sessionId];
+    }
+  }
+};
+
+module.exports = { roomUsersScore, getStreakMessage, removeUserFromSession };

@@ -5,7 +5,11 @@ const cors = require("cors");
 const http = require("http");
 const { Server } = require("socket.io");
 const { sleep } = require("./utils");
-const { getStreakMessage, roomUsersScore } = require("./helper");
+const {
+  getStreakMessage,
+  roomUsersScore,
+  removeUserFromSession,
+} = require("./helper");
 const server = http.createServer(app);
 const dotenv = require("dotenv");
 dotenv.config();
@@ -64,6 +68,10 @@ io.on("connection", (socket) => {
       "Before emmiting reconnectUserr:::::::",
       sessions[sessionId].users
     );
+    if (sessions[sessionId].gameStatus === "ready") {
+      io.to(socket.id).emit("prepareForGame");
+    }
+
     // socket.emit("reconnectUser", sessions[idOfSession]);
     io.to(sessionId).emit("roomUsers", sessions[sessionId].users);
 
@@ -106,7 +114,7 @@ io.on("connection", (socket) => {
     socket.join(sessionId);
     if (decodedToken) {
       if (!sessions[sessionId]) {
-        sessions[sessionId] = { users: [], round: 0, isGameRunning: false };
+        sessions[sessionId] = { users: [], round: 0, gameStatus: "notStarted" };
       }
 
       const isHost = sessions[sessionId]?.users?.length === 0 ? true : false;
@@ -193,31 +201,42 @@ io.on("connection", (socket) => {
     console.log(
       `************EVENT RECEIVED: leaveRoom for session ${sessionId} **************** /n/n/n`
     );
-    if (sessions[sessionId]) {
-      const user = sessions[sessionId]?.users.find(
-        (user) => user.userId == decodedToken.userId
-      );
-      if (user?.isHost && sessions[sessionId]?.users.length > 1) {
-        const nextUser = sessions[sessionId]?.users.find(
-          (user) => user.userId !== decodedToken.userId
-        );
-        sessions[sessionId].users = sessions[sessionId]?.users.map((user) =>
-          user.id === nextUser.id ? { ...user, isHost: true } : user
-        );
-      }
-      sessions[sessionId].users = sessions[sessionId]?.users.filter(
-        (user) => user.userId !== decodedToken.userId
-      );
-      //if user is the last user in the room, delete the room
-    }
+    // if (sessions[sessionId]) {
+    //   const user = sessions[sessionId]?.users.find(
+    //     (user) => user.userId == decodedToken.userId
+    //   );
+    //   if (user?.isHost && sessions[sessionId]?.users.length > 1) {
+    //     const nextUser = sessions[sessionId]?.users.find(
+    //       (user) => user.userId !== decodedToken.userId
+    //     );
+    //     sessions[sessionId].users = sessions[sessionId]?.users.map((user) =>
+    //       user.id === nextUser.id ? { ...user, isHost: true } : user
+    //     );
+    //   }
+    //   sessions[sessionId].users = sessions[sessionId]?.users.filter(
+    //     (user) => user.userId !== decodedToken.userId
+    //   );
+    //   //if user is the last user in the room, delete the room
+    // }
+    // console.log("At leave room: ", sessions[sessionId]);
+    // if (sessions[sessionId]) {
+    //   io.to(sessionId).emit("roomUsers", sessions[sessionId].users);
+    // }
+
+    // if (sessions[sessionId]?.users.length === 0) {
+    //   delete sessions[sessionId];
+    // }
+
+    const userId = decodedToken.userId;
+
+    removeUserFromSession(sessions, sessionId, userId);
+
     console.log("At leave room: ", sessions[sessionId]);
+
     if (sessions[sessionId]) {
       io.to(sessionId).emit("roomUsers", sessions[sessionId].users);
     }
-
-    if (sessions[sessionId]?.users.length === 0) {
-      delete sessions[sessionId];
-    }
+    io.to(sessionId).emit("gameStarted");
   });
 
   let isLoopRunning = false;
@@ -301,7 +320,7 @@ io.on("connection", (socket) => {
           io.to(sessionId).emit("roomUsersScore", second_data_to_send);
           second_data_to_send = [];
 
-          sessions[sessionId].isGameRunning = true;
+          sessions[sessionId].gameStatus = "running";
           sessions[sessionId].startedTime = new Date().getTime();
           console.log("Emitting nextQuestion", index);
           io.to(sessionId).emit("nextQuestion", { index });
@@ -359,6 +378,7 @@ io.on("connection", (socket) => {
     );
     //prepareForGame emit the game to all the users
     readyUsers[sessionId] = [];
+    sessions[sessionId].gameStatus = "ready";
     io.to(sessionId).emit("prepareForGame");
     sessions[sessionId].hasPlayed = false;
   });
