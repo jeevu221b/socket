@@ -103,6 +103,13 @@ io.on("connection", (socket) => {
       console.log("Session ID is required");
       return;
     }
+    // Leave all previous rooms
+    socket.rooms.forEach((room) => {
+      if (room !== socket.id) {
+        socket.leave(room);
+      }
+    });
+
     socket.join(sessionId);
     if (decodedToken) {
       if (!sessions[sessionId]) {
@@ -190,6 +197,10 @@ io.on("connection", (socket) => {
   });
 
   socket.on("leaveRoom", ({ sessionId }) => {
+    if (!sessionId) {
+      console.error("Session ID is required");
+      return;
+    }
     console.log(
       `************EVENT RECEIVED: leaveRoom for session ${sessionId} **************** /n/n/n`
     );
@@ -210,6 +221,7 @@ io.on("connection", (socket) => {
       );
       //if user is the last user in the room, delete the room
     }
+    socket.leave(sessionId);
     console.log("At leave room: ", sessions[sessionId]);
     if (sessions[sessionId]) {
       io.to(sessionId).emit("roomUsers", sessions[sessionId].users);
