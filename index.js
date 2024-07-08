@@ -8,7 +8,6 @@ const { sleep } = require("./utils");
 const {
   getStreakMessage,
   roomUsersScore,
-  removeUserFromSession,
 } = require("./helper");
 const server = http.createServer(app);
 const dotenv = require("dotenv");
@@ -111,6 +110,13 @@ io.on("connection", (socket) => {
       console.log("Session ID is required");
       return;
     }
+    // Leave all previous rooms
+    socket.rooms.forEach((room) => {
+      if (room !== socket.id) {
+        socket.leave(room);
+      }
+    });
+
     socket.join(sessionId);
     if (decodedToken) {
       if (!sessions[sessionId]) {
@@ -198,39 +204,30 @@ io.on("connection", (socket) => {
   });
 
   socket.on("leaveRoom", ({ sessionId }) => {
+    if (!sessionId) {
+      console.error("Session ID is required");
+      return;
+    }
     console.log(
       `************EVENT RECEIVED: leaveRoom for session ${sessionId} **************** /n/n/n`
     );
-    // if (sessions[sessionId]) {
-    //   const user = sessions[sessionId]?.users.find(
-    //     (user) => user.userId == decodedToken.userId
-    //   );
-    //   if (user?.isHost && sessions[sessionId]?.users.length > 1) {
-    //     const nextUser = sessions[sessionId]?.users.find(
-    //       (user) => user.userId !== decodedToken.userId
-    //     );
-    //     sessions[sessionId].users = sessions[sessionId]?.users.map((user) =>
-    //       user.id === nextUser.id ? { ...user, isHost: true } : user
-    //     );
-    //   }
-    //   sessions[sessionId].users = sessions[sessionId]?.users.filter(
-    //     (user) => user.userId !== decodedToken.userId
-    //   );
-    //   //if user is the last user in the room, delete the room
-    // }
-    // console.log("At leave room: ", sessions[sessionId]);
-    // if (sessions[sessionId]) {
-    //   io.to(sessionId).emit("roomUsers", sessions[sessionId].users);
-    // }
-
-    // if (sessions[sessionId]?.users.length === 0) {
-    //   delete sessions[sessionId];
-    // }
-
-    const userId = decodedToken.userId;
-
-    removeUserFromSession(sessions, sessionId, userId);
-
+    if (sessions[sessionId]) {
+      const user = sessions[sessionId]?.users.find(
+        (user) => user.userId == decodedToken.userId
+      );
+      if (user?.isHost && sessions[sessionId]?.users.length > 1) {
+        const nextUser = sessions[sessionId]?.users.find(
+          (user) => user.userId !== decodedToken.userId
+        );
+        sessions[sessionId].users = sessions[sessionId]?.users.map((user) =>
+          user.id === nextUser.id ? { ...user, isHost: true } : user
+        );
+      }
+      sessions[sessionId].users = sessions[sessionId]?.users.filter(
+        (user) => user.userId !== decodedToken.userId
+      );
+      //if user is the last user in the room, delete the room
+    }
     console.log("At leave room: ", sessions[sessionId]);
 
     if (sessions[sessionId]) {
